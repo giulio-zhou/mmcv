@@ -15,6 +15,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
 import mobilenet
+import mobilenetv2
 import resnet_cifar
 
 import mmcv
@@ -149,6 +150,8 @@ def main():
         model = getattr(resnet_cifar, cfg.model)()
     elif cfg.model == 'mobilenet':
         model = mobilenet.MobileNet()
+    elif cfg.model == 'mobilenetv2':
+        model = mobilenetv2.MobileNetV2()
     if dist:
         model = DistributedDataParallel(
             model.cuda(), device_ids=[torch.cuda.current_device()])
