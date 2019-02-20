@@ -16,6 +16,9 @@ from torchvision import datasets, transforms
 
 import resnet_cifar
 
+import mmcv
+import os.path as osp
+import shutil
 
 def accuracy(output, target, topk=(1, )):
     """Computes the precision@k for the specified values of k"""
@@ -168,6 +171,12 @@ def main():
         runner.resume(cfg.resume_from)
     elif cfg.get('load_from') is not None:
         runner.load_checkpoint(cfg.load_from)
+
+    # Create work_dir if necessary and copy config file.
+    if mmcv.is_str(cfg.work_dir):
+        work_dir = osp.abspath(cfg.work_dir)
+        mmcv.mkdir_or_exist(work_dir)
+        shutil.copy(args.config, work_dir)
 
     runner.run([train_loader, val_loader], cfg.workflow, cfg.total_epochs)
 
