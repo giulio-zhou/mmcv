@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
 
@@ -81,6 +82,58 @@ def parse_args():
     return parser.parse_args()
 
 
+def deep_recursive_obj_from_dict(info):
+    """Initialize an object from dict.
+
+    The dict must contain the key "type", which indicates the object type, it
+    can be either a string or type, such as "list" or ``list``. Remaining
+    fields are treated as the arguments for constructing the object.
+
+    Args:
+        info (dict): Object types and arguments.
+        parent (:class:`module`): Module which may containing expected object
+            classes.
+        default_args (dict, optional): Default arguments for initializing the
+            object.
+
+    Returns:
+        any type: Object built from the dict.
+    """
+    assert isinstance(info, dict) and 'type' in info
+    # TODO: This does not support non-object dict args.
+    args = info.copy()
+    obj_type = args.pop('type')
+    if mmcv.is_str(obj_type):
+        if obj_type in sys.modules:
+            obj_type = sys.modules[obj_type]
+        else:
+            # Assume the last part is a function/member name.
+            elems = obj_type.split('.')
+            module, attr = '.'.join(elems[:-1]), elems[-1]
+            obj_type = getattr(sys.modules[module], attr)
+    elif not isinstance(obj_type, type):
+        raise TypeError('type must be a str or valid type, but got {}'.format(
+            type(obj_type)))
+    evaluated_args = {}
+    for argname, argval in args.items():
+        print(argname, type(argval))
+        if isinstance(argval, dict):
+            evaluated_args[argname] = deep_recursive_obj_from_dict(argval)
+        elif type(argval) == list or type(argval) == tuple:
+            # Transform each dict in the list, else simply append.
+            transformed_list = []
+            for elem in argval:
+                if isinstance(elem, dict):
+                    transformed_list.append(deep_recursive_obj_from_dict(elem))
+                else:
+                    transformed_list.append(elem)
+            evaluated_args[argname] = type(argval)(transformed_list)
+        else:
+            evaluated_args[argname] = argval
+    print(obj_type)
+    return obj_type(**evaluated_args)
+
+
 def main():
     args = parse_args()
 
@@ -102,23 +155,8 @@ def main():
         logger.info('Enabled distributed training.')
 
     # build datasets and dataloaders
-    normalize = transforms.Normalize(mean=cfg.mean, std=cfg.std)
-    train_dataset = datasets.CIFAR10(
-        root=cfg.data_root,
-        train=True,
-        transform=transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ]))
-    val_dataset = datasets.CIFAR10(
-        root=cfg.data_root,
-        train=False,
-        transform=transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ]))
+    train_dataset = deep_recursive_obj_from_dict(cfg.data.train)
+    val_dataset = deep_recursive_obj_from_dict(cfg.data.val)
     if dist:
         num_workers = cfg.data_workers
         assert cfg.batch_size % world_size == 0
