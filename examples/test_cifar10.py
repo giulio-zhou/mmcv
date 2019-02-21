@@ -8,9 +8,9 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-import mobilenet
-import mobilenetv2
-import resnet_cifar
+import models.mobilenet
+import models.mobilenetv2
+import models.resnet_cifar
 
 import mmcv
 from mmcv.runner import load_checkpoint, parallel_test, obj_from_dict
@@ -95,11 +95,11 @@ def main():
                                                    configs)):
         # build model
         if 'resnet' in curr_cfg.model:
-            model_cls = getattr(resnet_cifar, curr_cfg.model)
+            model_cls = getattr(models.resnet_cifar, curr_cfg.model)
         elif curr_cfg.model == 'mobilenet':
-            model_cls = mobilenet.MobileNet
+            model_cls = models.mobilenet.MobileNet
         elif curr_cfg.model == 'mobilenetv2':
-            model_cls = mobilenetv2.MobileNetV2
+            model_cls = models.mobilenetv2.MobileNetV2
 
         # Need higher ulimit for data loaders.
         import resource
