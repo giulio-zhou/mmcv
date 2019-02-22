@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
+import custom_datasets
 import models.mobilenet
 import models.mobilenetv2
 import models.resnet_cifar
@@ -22,6 +23,58 @@ import models.resnet_cifar
 import mmcv
 import os.path as osp
 import shutil
+
+
+def deep_recursive_obj_from_dict(info):
+    """Initialize an object from dict.
+
+    The dict must contain the key "type", which indicates the object type, it
+    can be either a string or type, such as "list" or ``list``. Remaining
+    fields are treated as the arguments for constructing the object.
+
+    Args:
+        info (dict): Object types and arguments.
+        parent (:class:`module`): Module which may containing expected object
+            classes.
+        default_args (dict, optional): Default arguments for initializing the
+            object.
+
+    Returns:
+        any type: Object built from the dict.
+    """
+    assert isinstance(info, dict) and 'type' in info
+    # TODO: This does not support object dicts nested in non-object dicts.
+    args = info.copy()
+    obj_type = args.pop('type')
+    if mmcv.is_str(obj_type):
+        if obj_type in sys.modules:
+            obj_type = sys.modules[obj_type]
+        else:
+            # Assume the last part is a function/member name.
+            elems = obj_type.split('.')
+            module, attr = '.'.join(elems[:-1]), elems[-1]
+            obj_type = getattr(sys.modules[module], attr)
+    elif not isinstance(obj_type, type):
+        raise TypeError('type must be a str or valid type, but got {}'.format(
+            type(obj_type)))
+    evaluated_args = {}
+    for argname, argval in args.items():
+        print(argname, type(argval))
+        if isinstance(argval, dict) and 'type' in argval:
+            evaluated_args[argname] = deep_recursive_obj_from_dict(argval)
+        elif type(argval) == list or type(argval) == tuple:
+            # Transform each dict in the list, else simply append.
+            transformed_list = []
+            for elem in argval:
+                if isinstance(elem, dict):
+                    transformed_list.append(deep_recursive_obj_from_dict(elem))
+                else:
+                    transformed_list.append(elem)
+            evaluated_args[argname] = type(argval)(transformed_list)
+        else:
+            evaluated_args[argname] = argval
+    print(obj_type)
+    return obj_type(**evaluated_args)
 
 def accuracy(output, target, topk=(1, )):
     """Computes the precision@k for the specified values of k"""
@@ -41,10 +94,14 @@ def accuracy(output, target, topk=(1, )):
 
 
 def batch_processor(model, data, train_mode):
-    img, label = data
+    img, label, logits = data
     label = label.cuda(non_blocking=True)
+    logits = logits.cuda(non_blocking=True)
     pred = model(img)
-    loss = F.cross_entropy(pred, label)
+    if len(logits.size()) > 1:
+        loss = F.kl_div(F.log_softmax(pred, 1), F.softmax(logits, 1))
+    else:
+        loss = F.cross_entropy(pred, label)
     acc_top1, acc_top5 = accuracy(pred, label, topk=(1, 5))
     log_vars = OrderedDict()
     log_vars['loss'] = loss.item()
@@ -80,58 +137,6 @@ def parse_args():
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
     return parser.parse_args()
-
-
-def deep_recursive_obj_from_dict(info):
-    """Initialize an object from dict.
-
-    The dict must contain the key "type", which indicates the object type, it
-    can be either a string or type, such as "list" or ``list``. Remaining
-    fields are treated as the arguments for constructing the object.
-
-    Args:
-        info (dict): Object types and arguments.
-        parent (:class:`module`): Module which may containing expected object
-            classes.
-        default_args (dict, optional): Default arguments for initializing the
-            object.
-
-    Returns:
-        any type: Object built from the dict.
-    """
-    assert isinstance(info, dict) and 'type' in info
-    # TODO: This does not support non-object dict args.
-    args = info.copy()
-    obj_type = args.pop('type')
-    if mmcv.is_str(obj_type):
-        if obj_type in sys.modules:
-            obj_type = sys.modules[obj_type]
-        else:
-            # Assume the last part is a function/member name.
-            elems = obj_type.split('.')
-            module, attr = '.'.join(elems[:-1]), elems[-1]
-            obj_type = getattr(sys.modules[module], attr)
-    elif not isinstance(obj_type, type):
-        raise TypeError('type must be a str or valid type, but got {}'.format(
-            type(obj_type)))
-    evaluated_args = {}
-    for argname, argval in args.items():
-        print(argname, type(argval))
-        if isinstance(argval, dict):
-            evaluated_args[argname] = deep_recursive_obj_from_dict(argval)
-        elif type(argval) == list or type(argval) == tuple:
-            # Transform each dict in the list, else simply append.
-            transformed_list = []
-            for elem in argval:
-                if isinstance(elem, dict):
-                    transformed_list.append(deep_recursive_obj_from_dict(elem))
-                else:
-                    transformed_list.append(elem)
-            evaluated_args[argname] = type(argval)(transformed_list)
-        else:
-            evaluated_args[argname] = argval
-    print(obj_type)
-    return obj_type(**evaluated_args)
 
 
 def main():
@@ -184,12 +189,7 @@ def main():
         num_workers=num_workers)
 
     # build model
-    if 'resnet' in cfg.model:
-        model = getattr(models.resnet_cifar, cfg.model)()
-    elif cfg.model == 'mobilenet':
-        model = models.mobilenet.MobileNet()
-    elif cfg.model == 'mobilenetv2':
-        model = models.mobilenetv2.MobileNetV2()
+    model = deep_recursive_obj_from_dict(cfg.model)
     if dist:
         model = DistributedDataParallel(
             model.cuda(), device_ids=[torch.cuda.current_device()])
