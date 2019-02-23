@@ -19,6 +19,7 @@ import custom_datasets
 import models.mobilenet
 import models.mobilenetv2
 import models.resnet_cifar
+import models.wide_resnet
 
 import mmcv
 import os.path as osp
