@@ -7,32 +7,36 @@ std = [0.2023, 0.1994, 0.2010]
 dataset_type = 'torchvision.datasets.CIFAR10'
 data = dict(
     train=dict(
-        type=dataset_type,
-        root=data_root,
-        train=True,
-        download=True,
-        transform=dict(
-            type='torchvision.transforms.Compose',
-            transforms=[
-                dict(type='torchvision.transforms.RandomCrop',
-                     size=32, padding=4),
-                dict(type='torchvision.transforms.RandomHorizontalFlip'),
-                dict(type='torchvision.transforms.ToTensor'),
-                dict(type='torchvision.transforms.Normalize',
-                     mean=mean, std=std),
-            ])),
+        type='custom_datasets.CustomDataset',
+        base_dataset=dict(
+            type=dataset_type,
+            root=data_root,
+            train=True,
+            download=True,
+            transform=dict(
+                type='torchvision.transforms.Compose',
+                transforms=[
+                    dict(type='torchvision.transforms.RandomCrop',
+                         size=32, padding=4),
+                    dict(type='torchvision.transforms.RandomHorizontalFlip'),
+                    dict(type='torchvision.transforms.ToTensor'),
+                    dict(type='torchvision.transforms.Normalize',
+                         mean=mean, std=std),
+                ]))),
     val=dict(
-        type=dataset_type,
-        root=data_root,
-        train=False,
-        download=True,
-        transform=dict(
-            type='torchvision.transforms.Compose',
-            transforms=[
-                dict(type='torchvision.transforms.ToTensor'),
-                dict(type='torchvision.transforms.Normalize',
-                     mean=mean, std=std),
-            ])),
+        type='custom_datasets.CustomDataset',
+        base_dataset=dict(
+            type=dataset_type,
+            root=data_root,
+            train=False,
+            download=True,
+            transform=dict(
+                type='torchvision.transforms.Compose',
+                transforms=[
+                    dict(type='torchvision.transforms.ToTensor'),
+                    dict(type='torchvision.transforms.Normalize',
+                         mean=mean, std=std),
+                ]))),
 )
 batch_size = 128
 
