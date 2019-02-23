@@ -1,5 +1,5 @@
 # model settings
-model = 'resnet18'
+model = dict(type='models.resnet_cifar.resnet18', num_classes=10)
 # dataset settings
 data_root = '/home/gzhou/cifar10'
 mean = [0.4914, 0.4822, 0.4465]
