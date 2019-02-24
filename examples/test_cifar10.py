@@ -10,9 +10,11 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 import custom_datasets
+import models.custom
 import models.mobilenet
 import models.mobilenetv2
 import models.resnet_cifar
+import models.wide_resnet
 
 import mmcv
 from mmcv.runner import load_checkpoint, parallel_test, obj_from_dict

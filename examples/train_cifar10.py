@@ -8,6 +8,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn.functional as F
+import torch.utils.data
 from mmcv import Config
 from mmcv.runner import Runner, DistSamplerSeedHook
 from torch.nn.parallel import DataParallel, DistributedDataParallel
@@ -16,6 +17,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torchvision import datasets, transforms
 
 import custom_datasets
+import models.custom
 import models.mobilenet
 import models.mobilenetv2
 import models.resnet_cifar
